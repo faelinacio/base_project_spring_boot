@@ -10,7 +10,7 @@ Project with basic functionalities
 
 For building and running the application you need:
 
-- [JDK 17](https://www.oracle.com/java/technologies/downloads/#java17)
+- [JDK 21](https://www.oracle.com/java/technologies/downloads/#java21)
 - [Maven 3](https://maven.apache.org)
 
 ## Running the application locally
