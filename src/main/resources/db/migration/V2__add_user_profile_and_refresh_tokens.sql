@@ -1,7 +1,3 @@
---liquibase formatted sql
-
---changeset Liquibase Rafael:2
-
 alter table "user"
     add column role       varchar(50)  not null default 'USER',
     add column enabled    boolean      not null default true,

@@ -18,11 +18,24 @@ For building and running the application you need:
 `application.properties` requires every sensitive value (JWT secret, datasource credentials, CORS
 origins) to come from an environment variable, with no defaults — this is intentional, so the app
 refuses to start if one is missing. For local development, activate the `dev` profile instead,
-which supplies safe local-only defaults via `application-dev.properties`:
+which supplies safe local-only defaults via `application-dev.properties`.
+
+First, start a local Postgres and apply the schema (requires Docker):
 
 ```shell
-SPRING_PROFILES_ACTIVE=dev mvn spring-boot:run
+cd development-environment
+make dev     # starts Postgres and runs the Flyway migrations
 ```
+
+Then, from the project root:
+
+```shell
+SPRING_PROFILES_ACTIVE=dev ./mvnw spring-boot:run
+```
+
+Other `development-environment` targets: `make up`/`make down` (start/stop Postgres only),
+`make migrate` (re-run Flyway against an already-running Postgres), `make reset` (wipe the local
+database volume), `make logs` (tail Postgres logs). Run `make help` to list them.
 
 Running without the `dev` profile (e.g. in staging/production) requires setting `DB_URL`,
 `DB_USERNAME`, `DB_PASSWORD`, `JWT_SECRET`, `JWT_ACCESS_TOKEN_EXPIRATION`,
@@ -48,8 +61,9 @@ Classic layered architecture, package-by-layer:
 
 Entity primary keys are `UUID`s (`GenerationType.UUID`), not auto-increment integers.
 
-Persistence uses Spring Data JPA. Liquibase owns the schema — Hibernate only validates entities
-against it at startup (`spring.jpa.hibernate.ddl-auto=validate`), never generates or alters DDL.
+Persistence uses Spring Data JPA. Flyway owns the schema (migrations in
+`src/main/resources/db/migration`) — Hibernate only validates entities against it at startup
+(`spring.jpa.hibernate.ddl-auto=validate`), never generates or alters DDL.
 
 Code is auto-formatted by `formatter-maven-plugin` on every `mvn compile`.
 
@@ -64,7 +78,7 @@ layers:
 
 - **Unit tests** (`usecase/`, `security/jwt/`, `dto/validation/`) — business logic in isolation,
   with Mockito standing in for repositories/collaborators.
-- **`ApplicationTests`** — verifies the full Spring context boots against a real, Liquibase-migrated
+- **`ApplicationTests`** — verifies the full Spring context boots against a real, Flyway-migrated
   database.
 - **`integration/AuthFlowIntegrationTest`** — drives the real HTTP stack (MockMvc) through
   register/login/refresh/logout, including token rotation, disabled-account handling, and

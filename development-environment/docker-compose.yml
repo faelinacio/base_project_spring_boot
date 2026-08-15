@@ -1,0 +1,33 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: base_project_spring_boot_postgres
+    environment:
+      POSTGRES_DB: base_project_spring_boot
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # Not started by `docker compose up`; run explicitly via `make migrate` (or
+  # `docker compose run --rm flyway`) once postgres is healthy.
+  flyway:
+    image: flyway/flyway:12-alpine
+    command: -url=jdbc:postgresql://postgres:5432/base_project_spring_boot -user=postgres -password=postgres -connectRetries=10 migrate
+    volumes:
+      - ../src/main/resources/db/migration:/flyway/sql
+    depends_on:
+      postgres:
+        condition: service_healthy
+    profiles:
+      - migrate
+
+volumes:
+  postgres_data:
