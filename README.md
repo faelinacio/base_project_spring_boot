@@ -15,13 +15,74 @@ For building and running the application you need:
 
 ## Running the application locally
 
-There are several ways to run a Spring Boot application on your local machine. One way is to execute the `main` method in the `de.codecentric.springbootsample.Application` class from your IDE.
+`application.properties` requires every sensitive value (JWT secret, datasource credentials, CORS
+origins) to come from an environment variable, with no defaults — this is intentional, so the app
+refuses to start if one is missing. For local development, activate the `dev` profile instead,
+which supplies safe local-only defaults via `application-dev.properties`.
 
-Alternatively you can use the [Spring Boot Maven plugin](https://docs.spring.io/spring-boot/docs/current/reference/html/build-tool-plugins-maven-plugin.html) like so:
+First, start a local Postgres and apply the schema (requires Docker):
 
 ```shell
-mvn spring-boot:run
+cd development-environment
+make dev     # starts Postgres and runs the Flyway migrations
 ```
+
+Then, from the project root:
+
+```shell
+SPRING_PROFILES_ACTIVE=dev ./mvnw spring-boot:run
+```
+
+Other `development-environment` targets: `make up`/`make down` (start/stop Postgres only),
+`make migrate` (re-run Flyway against an already-running Postgres), `make reset` (wipe the local
+database volume), `make logs` (tail Postgres logs). Run `make help` to list them.
+
+Running without the `dev` profile (e.g. in staging/production) requires setting `DB_URL`,
+`DB_USERNAME`, `DB_PASSWORD`, `JWT_SECRET`, `JWT_ACCESS_TOKEN_EXPIRATION`,
+`JWT_REFRESH_TOKEN_EXPIRATION`, `JWT_ISSUER` and `CORS_ALLOWED_ORIGINS`. Generate a JWT secret with:
+
+```shell
+openssl rand -base64 32
+```
+
+## Project structure
+
+Classic layered architecture, package-by-layer:
+
+- `controller/` — REST endpoints
+- `usecase/` — single-purpose business operations (annotated `@UseCase` instead of `@Service`),
+  each with one public `execute(...)` method
+- `repository/` — Spring Data JPA repository interfaces
+- `domain/` — JPA entities (`User`, `RefreshToken`, `Role`)
+- `dto/` — request/response payloads (+ `dto/validation` for the custom `@ValidPassword` check)
+- `security/` — JWT issuance/validation and Spring Security wiring (`security/jwt` subpackage)
+- `config/` — `SecurityConfig`, `CorsProperties`
+- `exception/` — `GlobalExceptionHandler` and domain exceptions
+
+Entity primary keys are `UUID`s (`GenerationType.UUID`), not auto-increment integers.
+
+Persistence uses Spring Data JPA. Flyway owns the schema (migrations in
+`src/main/resources/db/migration`) — Hibernate only validates entities against it at startup
+(`spring.jpa.hibernate.ddl-auto=validate`), never generates or alters DDL.
+
+Code is auto-formatted by `formatter-maven-plugin` on every `mvn compile`.
+
+## Testing
+
+```shell
+SPRING_PROFILES_ACTIVE=dev mvn test
+```
+
+Requires Docker (tests use Testcontainers for a real Postgres instance). The suite has three
+layers:
+
+- **Unit tests** (`usecase/`, `security/jwt/`, `dto/validation/`) — business logic in isolation,
+  with Mockito standing in for repositories/collaborators.
+- **`ApplicationTests`** — verifies the full Spring context boots against a real, Flyway-migrated
+  database.
+- **`integration/AuthFlowIntegrationTest`** — drives the real HTTP stack (MockMvc) through
+  register/login/refresh/logout, including token rotation, disabled-account handling, and
+  role-based access control.
 
 ## Copyright
 
