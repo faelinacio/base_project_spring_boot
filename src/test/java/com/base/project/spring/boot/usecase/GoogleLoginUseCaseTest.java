@@ -3,6 +3,7 @@ package com.base.project.spring.boot.usecase;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -21,7 +22,9 @@ import org.springframework.security.authentication.DisabledException;
 import com.base.project.spring.boot.domain.Role;
 import com.base.project.spring.boot.domain.User;
 import com.base.project.spring.boot.dto.AuthResponse;
+import com.base.project.spring.boot.dto.LoginResponse;
 import com.base.project.spring.boot.repository.UserRepository;
+import com.base.project.spring.boot.security.jwt.JwtService;
 
 @ExtendWith(MockitoExtension.class)
 class GoogleLoginUseCaseTest {
@@ -32,11 +35,14 @@ class GoogleLoginUseCaseTest {
     @Mock
     private TokenIssuer tokenIssuer;
 
+    @Mock
+    private JwtService jwtService;
+
     private GoogleLoginUseCase useCase;
 
     @BeforeEach
     void setUp() {
-        useCase = new GoogleLoginUseCase(userRepository, tokenIssuer);
+        useCase = new GoogleLoginUseCase(userRepository, tokenIssuer, jwtService);
     }
 
     @Test
@@ -49,12 +55,11 @@ class GoogleLoginUseCaseTest {
             return user;
         });
         AuthResponse expected = new AuthResponse("access", "refresh", "Bearer", 900);
-        when(tokenIssuer.issueFor(org.mockito.ArgumentMatchers.eq("rafael@example.com"),
-                org.mockito.ArgumentMatchers.eq(Role.USER), any())).thenReturn(expected);
+        when(tokenIssuer.issueFor(eq("rafael@example.com"), eq(Role.USER), any())).thenReturn(expected);
 
-        AuthResponse result = useCase.execute("google-123", "rafael@example.com", "Rafael");
+        LoginResponse result = useCase.execute("google-123", "rafael@example.com", "Rafael");
 
-        assertThat(result).isEqualTo(expected);
+        assertThat(result).isEqualTo(LoginResponse.authenticated(expected));
         ArgumentCaptor<User> savedUser = ArgumentCaptor.forClass(User.class);
         verify(userRepository).save(savedUser.capture());
         assertThat(savedUser.getValue().getPassword()).isNull();
@@ -64,22 +69,40 @@ class GoogleLoginUseCaseTest {
     }
 
     @Test
-    void execute_whenPasswordAccountWithSameEmailExists_linksGoogleId() {
+    void execute_whenUnverifiedPasswordAccountWithSameEmailExists_linksAndInvalidatesThePassword() {
         UUID userId = UUID.randomUUID();
-        User existing = User.builder().id(userId).email("rafael@example.com").password("hash").role(Role.USER)
-                .enabled(true).emailVerified(false).build();
+        User existing = User.builder().id(userId).email("rafael@example.com").password("attacker-controlled-hash")
+                .role(Role.USER).enabled(true).emailVerified(false).build();
         when(userRepository.findByGoogleId("google-123")).thenReturn(Optional.empty());
         when(userRepository.findByEmail("rafael@example.com")).thenReturn(Optional.of(existing));
         when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
         AuthResponse expected = new AuthResponse("access", "refresh", "Bearer", 900);
         when(tokenIssuer.issueFor("rafael@example.com", Role.USER, userId)).thenReturn(expected);
 
-        AuthResponse result = useCase.execute("google-123", "rafael@example.com", "Rafael");
+        LoginResponse result = useCase.execute("google-123", "rafael@example.com", "Rafael");
 
-        assertThat(result).isEqualTo(expected);
+        assertThat(result).isEqualTo(LoginResponse.authenticated(expected));
         assertThat(existing.getGoogleId()).isEqualTo("google-123");
         assertThat(existing.isEmailVerified()).isTrue();
-        assertThat(existing.getPassword()).isEqualTo("hash");
+        // The pre-existing password can no longer have been proven to belong to the real owner of this
+        // email (nobody had verified it yet), so linking a Google-verified login must invalidate it.
+        assertThat(existing.getPassword()).isNull();
+    }
+
+    @Test
+    void execute_whenVerifiedPasswordAccountWithSameEmailExists_linksAndKeepsThePassword() {
+        UUID userId = UUID.randomUUID();
+        User existing = User.builder().id(userId).email("rafael@example.com").password("owners-hash").role(Role.USER)
+                .enabled(true).emailVerified(true).build();
+        when(userRepository.findByGoogleId("google-123")).thenReturn(Optional.empty());
+        when(userRepository.findByEmail("rafael@example.com")).thenReturn(Optional.of(existing));
+        when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        AuthResponse expected = new AuthResponse("access", "refresh", "Bearer", 900);
+        when(tokenIssuer.issueFor("rafael@example.com", Role.USER, userId)).thenReturn(expected);
+
+        useCase.execute("google-123", "rafael@example.com", "Rafael");
+
+        assertThat(existing.getPassword()).isEqualTo("owners-hash");
     }
 
     @Test
@@ -92,6 +115,22 @@ class GoogleLoginUseCaseTest {
         assertThatThrownBy(() -> useCase.execute("google-123", "rafael@example.com", "Rafael"))
                 .isInstanceOf(DisabledException.class);
 
+        verify(tokenIssuer, never()).issueFor(any(), any(), any());
+    }
+
+    @Test
+    void execute_whenTotpEnabled_returnsMfaRequiredInsteadOfTokens() {
+        UUID userId = UUID.randomUUID();
+        User existing = User.builder().id(userId).email("rafael@example.com").googleId("google-123").role(Role.USER)
+                .enabled(true).emailVerified(true).totpEnabled(true).build();
+        when(userRepository.findByGoogleId("google-123")).thenReturn(Optional.of(existing));
+        JwtService.IssuedToken mfaToken = new JwtService.IssuedToken("mfa-token", null);
+        when(jwtService.generateMfaToken("rafael@example.com", Role.USER)).thenReturn(mfaToken);
+
+        LoginResponse result = useCase.execute("google-123", "rafael@example.com", "Rafael");
+
+        assertThat(result.mfaRequired()).isTrue();
+        assertThat(result.mfaToken()).isEqualTo("mfa-token");
         verify(tokenIssuer, never()).issueFor(any(), any(), any());
     }
 

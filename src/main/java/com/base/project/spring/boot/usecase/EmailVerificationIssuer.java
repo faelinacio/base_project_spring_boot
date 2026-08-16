@@ -7,6 +7,7 @@ import java.time.ZoneOffset;
 import java.util.Base64;
 
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.base.project.spring.boot.config.EmailVerificationProperties;
 import com.base.project.spring.boot.domain.EmailVerificationToken;
@@ -18,7 +19,11 @@ import lombok.RequiredArgsConstructor;
 
 /**
  * Shared by the register and resend-verification use cases: mints a fresh verification token for a user (invalidating
- * any earlier one), persists it (hashed), and emails the raw token as a link.
+ * any earlier one) and emails the raw token as a link. {@code issueToken} and {@code sendVerificationEmail} are exposed
+ * as two separate calls (rather than one method doing both) so callers commit the DB writes in their own short
+ * transaction before performing the (potentially slow) email send — a self-invoking wrapper method here wouldn't work
+ * for that: Spring's proxy-based {@code @Transactional} only intercepts calls made through the bean, not one method on
+ * this class calling another internally.
  */
 @Component
 @RequiredArgsConstructor
@@ -29,14 +34,18 @@ class EmailVerificationIssuer {
     private final EmailSender emailSender;
     private final EmailVerificationProperties properties;
 
-    void issueFor(User user) {
+    @Transactional
+    String issueToken(User user) {
         tokenRepository.invalidateAllByUserId(user.getId());
 
         String rawToken = generateRawToken();
         Instant expiresAt = Instant.now().plus(properties.tokenExpiration());
         tokenRepository.save(EmailVerificationToken.builder().userId(user.getId()).tokenHash(hasher.hash(rawToken))
                 .expiresAt(LocalDateTime.ofInstant(expiresAt, ZoneOffset.UTC)).used(false).build());
+        return rawToken;
+    }
 
+    void sendVerificationEmail(User user, String rawToken) {
         String link = properties.verificationBaseUrl() + "?token=" + rawToken;
         emailSender.send(user.getEmail(), "Confirme seu e-mail",
                 "Ola " + user.getName() + ",\n\nConfirme seu e-mail acessando o link abaixo:\n" + link

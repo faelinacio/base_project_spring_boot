@@ -116,6 +116,7 @@ class AuthFlowIntegrationTest {
     void getCurrentUser_withValidToken_returnsUserProfile() throws Exception {
         String email = uniqueEmail();
         AuthResponse tokens = register(email);
+        verifyEmail(email);
 
         String body = mockMvc
                 .perform(get("/api/users/me").header(HttpHeaders.AUTHORIZATION, "Bearer " + tokens.accessToken()))
@@ -127,8 +128,18 @@ class AuthFlowIntegrationTest {
     }
 
     @Test
-    void adminEndpoint_withUserRole_returns403() throws Exception {
+    void getCurrentUser_withUnverifiedEmailToken_returns403() throws Exception {
         AuthResponse tokens = register(uniqueEmail());
+
+        mockMvc.perform(get("/api/users/me").header(HttpHeaders.AUTHORIZATION, "Bearer " + tokens.accessToken()))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void adminEndpoint_withUserRole_returns403() throws Exception {
+        String email = uniqueEmail();
+        AuthResponse tokens = register(email);
+        verifyEmail(email);
 
         mockMvc.perform(get("/api/admin/ping").header(HttpHeaders.AUTHORIZATION, "Bearer " + tokens.accessToken()))
                 .andExpect(status().isForbidden());
@@ -138,6 +149,7 @@ class AuthFlowIntegrationTest {
     void adminEndpoint_withAdminRole_returns200() throws Exception {
         String email = uniqueEmail();
         AuthResponse tokens = register(email);
+        verifyEmail(email);
         promoteToAdmin(email);
 
         mockMvc.perform(get("/api/admin/ping").header(HttpHeaders.AUTHORIZATION, "Bearer " + tokens.accessToken()))

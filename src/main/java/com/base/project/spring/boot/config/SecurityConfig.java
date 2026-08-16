@@ -21,6 +21,7 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.context.NullSecurityContextRepository;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
@@ -47,10 +48,14 @@ public class SecurityConfig {
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 // IF_REQUIRED rather than STATELESS: the only thing that ever creates a session is the
                 // Google OAuth2 login handshake (Spring Security needs one to hold the authorization
-                // request between the redirect to Google and the callback). Every other endpoint is
-                // still authenticated per-request via the stateless JWT filter below and never touches
-                // the session.
+                // request between the redirect to Google and the callback). NullSecurityContextRepository
+                // below is what actually keeps that scoped to just the handshake: without it, Spring
+                // Security's default SecurityContextRepository would persist the OAuth2 Authentication
+                // into that same session and honor it on later requests via the session cookie — a
+                // second, session-based auth path alongside the JWT filter that CSRF-disable +
+                // CORS allowCredentials(true) don't expect to exist.
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED))
+                .securityContext(context -> context.securityContextRepository(new NullSecurityContextRepository()))
                 .authorizeHttpRequests(auth -> auth.requestMatchers(SecurityPaths.PUBLIC_ENDPOINTS).permitAll()
                         .anyRequest().authenticated())
                 .exceptionHandling(ex -> ex.authenticationEntryPoint(jwtAuthenticationEntryPoint)

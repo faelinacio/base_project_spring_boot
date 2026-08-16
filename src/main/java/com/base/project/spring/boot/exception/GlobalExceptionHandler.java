@@ -58,6 +58,12 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         return build(HttpStatus.BAD_REQUEST, ex.getMessage(), req);
     }
 
+    @ExceptionHandler(TotpAlreadyEnabledException.class)
+    public ResponseEntity<ErrorResponse> handleTotpAlreadyEnabled(TotpAlreadyEnabledException ex,
+            HttpServletRequest req) {
+        return build(HttpStatus.CONFLICT, ex.getMessage(), req);
+    }
+
     @ExceptionHandler(InvalidMfaTokenException.class)
     public ResponseEntity<ErrorResponse> handleInvalidMfaToken(InvalidMfaTokenException ex, HttpServletRequest req) {
         return build(HttpStatus.UNAUTHORIZED, ex.getMessage(), req);

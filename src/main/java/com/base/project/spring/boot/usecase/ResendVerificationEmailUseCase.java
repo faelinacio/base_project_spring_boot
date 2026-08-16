@@ -1,7 +1,6 @@
 package com.base.project.spring.boot.usecase;
 
-import org.springframework.transaction.annotation.Transactional;
-
+import com.base.project.spring.boot.domain.User;
 import com.base.project.spring.boot.repository.UserRepository;
 
 import lombok.RequiredArgsConstructor;
@@ -17,10 +16,13 @@ public class ResendVerificationEmailUseCase {
     private final UserRepository userRepository;
     private final EmailVerificationIssuer emailVerificationIssuer;
 
-    @Transactional
     public void execute(String email) {
-        userRepository.findByEmail(email).filter(user -> !user.isEmailVerified())
-                .ifPresent(emailVerificationIssuer::issueFor);
+        userRepository.findByEmail(email).filter(user -> !user.isEmailVerified()).ifPresent(this::reissue);
+    }
+
+    private void reissue(User user) {
+        String rawToken = emailVerificationIssuer.issueToken(user);
+        emailVerificationIssuer.sendVerificationEmail(user, rawToken);
     }
 
 }
