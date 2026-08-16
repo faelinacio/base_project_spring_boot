@@ -42,6 +42,12 @@ public class VerifyTotpLoginUseCase {
         User user = userRepository.findByEmail(jwtService.extractUsername(claims))
                 .orElseThrow(() -> new InvalidMfaTokenException("MFA token no longer maps to a valid account"));
 
+        // Re-checked here (LoginUseCase already verified it before issuing the mfaToken) in case the
+        // account was disabled in the window between the password step and this one.
+        if (!user.isEnabled()) {
+            throw new InvalidMfaTokenException("Account is disabled");
+        }
+
         if (!user.isTotpEnabled() || !totpService.verifyCode(user.getTotpSecret(), request.code())) {
             throw new InvalidTotpCodeException();
         }

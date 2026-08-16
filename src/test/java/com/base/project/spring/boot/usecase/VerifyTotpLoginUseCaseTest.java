@@ -57,8 +57,8 @@ class VerifyTotpLoginUseCaseTest {
     void execute_withValidMfaTokenAndCode_issuesTokens() {
         TotpLoginRequest request = new TotpLoginRequest("mfa-token", "123456");
         UUID userId = UUID.randomUUID();
-        User user = User.builder().id(userId).email("rafael@example.com").role(Role.USER).totpEnabled(true)
-                .totpSecret("secret").build();
+        User user = User.builder().id(userId).email("rafael@example.com").role(Role.USER).enabled(true)
+                .totpEnabled(true).totpSecret("secret").build();
         when(jwtService.parseAndValidate("mfa-token", TokenType.MFA)).thenReturn(Optional.of(claims));
         when(jwtService.extractUsername(claims)).thenReturn("rafael@example.com");
         when(userRepository.findByEmail("rafael@example.com")).thenReturn(Optional.of(user));
@@ -91,7 +91,7 @@ class VerifyTotpLoginUseCaseTest {
     @Test
     void execute_withWrongCode_throwsInvalidTotpCode() {
         TotpLoginRequest request = new TotpLoginRequest("mfa-token", "000000");
-        User user = User.builder().id(UUID.randomUUID()).email("rafael@example.com").totpEnabled(true)
+        User user = User.builder().id(UUID.randomUUID()).email("rafael@example.com").enabled(true).totpEnabled(true)
                 .totpSecret("secret").build();
         when(jwtService.parseAndValidate("mfa-token", TokenType.MFA)).thenReturn(Optional.of(claims));
         when(jwtService.extractUsername(claims)).thenReturn("rafael@example.com");
@@ -99,6 +99,19 @@ class VerifyTotpLoginUseCaseTest {
         when(totpService.verifyCode("secret", "000000")).thenReturn(false);
 
         assertThatThrownBy(() -> useCase.execute(request)).isInstanceOf(InvalidTotpCodeException.class);
+    }
+
+    @Test
+    void execute_whenAccountDisabledBetweenPasswordStepAndTotpStep_throwsInvalidMfaToken() {
+        TotpLoginRequest request = new TotpLoginRequest("mfa-token", "123456");
+        User user = User.builder().id(UUID.randomUUID()).email("rafael@example.com").enabled(false).totpEnabled(true)
+                .totpSecret("secret").build();
+        when(jwtService.parseAndValidate("mfa-token", TokenType.MFA)).thenReturn(Optional.of(claims));
+        when(jwtService.extractUsername(claims)).thenReturn("rafael@example.com");
+        when(userRepository.findByEmail("rafael@example.com")).thenReturn(Optional.of(user));
+
+        assertThatThrownBy(() -> useCase.execute(request)).isInstanceOf(InvalidMfaTokenException.class)
+                .hasMessageContaining("disabled");
     }
 
 }

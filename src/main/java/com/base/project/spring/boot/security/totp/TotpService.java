@@ -38,7 +38,7 @@ public class TotpService {
     }
 
     public boolean verifyCode(String secret, String code) {
-        return code != null && codeVerifier.isValidCode(secret, code);
+        return secret != null && code != null && codeVerifier.isValidCode(secret, code);
     }
 
     /** Data URI (base64 PNG) of the QR code an authenticator app scans to enroll {@code secret} for {@code email}. */

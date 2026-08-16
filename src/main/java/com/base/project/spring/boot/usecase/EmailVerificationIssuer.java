@@ -8,6 +8,7 @@ import java.util.Base64;
 
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.util.UriComponentsBuilder;
 
 import com.base.project.spring.boot.config.EmailVerificationProperties;
 import com.base.project.spring.boot.domain.EmailVerificationToken;
@@ -46,7 +47,10 @@ class EmailVerificationIssuer {
     }
 
     void sendVerificationEmail(User user, String rawToken) {
-        String link = properties.verificationBaseUrl() + "?token=" + rawToken;
+        // Uses "&" instead of "?" when verificationBaseUrl already carries a query string, rather than
+        // assuming it never does.
+        String link = UriComponentsBuilder.fromUriString(properties.verificationBaseUrl()).queryParam("token", rawToken)
+                .build().toUriString();
         emailSender.send(user.getEmail(), "Confirme seu e-mail",
                 "Ola " + user.getName() + ",\n\nConfirme seu e-mail acessando o link abaixo:\n" + link
                         + "\n\nEste link expira em " + properties.tokenExpiration().toHours()

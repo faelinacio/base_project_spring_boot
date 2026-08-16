@@ -1,6 +1,8 @@
 package com.base.project.spring.boot.security.oauth2;
 
 import java.io.IOException;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 
 import org.springframework.security.authentication.DisabledException;
 import org.springframework.security.core.Authentication;
@@ -56,15 +58,22 @@ public class OAuth2LoginSuccessHandler implements AuthenticationSuccessHandler {
             }
         }
 
-        UriComponentsBuilder redirect = UriComponentsBuilder.fromUriString(oauth2Properties.redirectUri());
-        if (result.mfaRequired()) {
-            redirect.queryParam("mfaRequired", "true").queryParam("mfaToken", result.mfaToken());
-        } else {
-            redirect.queryParam("accessToken", result.tokens().accessToken()).queryParam("refreshToken",
-                    result.tokens().refreshToken());
-        }
+        // Tokens go in the URL fragment, not the query string: the fragment is never sent to any server
+        // (ours or Google's) as part of a request, so it can't end up in access logs, Referer headers, or
+        // browser/proxy history the way a query param would. It's still readable by the frontend's own
+        // JS on the landing page, which is all that's needed here.
+        String fragment = result.mfaRequired() ? "mfaRequired=true&mfaToken=" + encode(result.mfaToken())
+                : "accessToken=" + encode(result.tokens().accessToken()) + "&refreshToken="
+                        + encode(result.tokens().refreshToken());
 
-        response.sendRedirect(redirect.build().toUriString());
+        String redirectUrl = UriComponentsBuilder.fromUriString(oauth2Properties.redirectUri()).fragment(fragment)
+                .build().toUriString();
+
+        response.sendRedirect(redirectUrl);
+    }
+
+    private String encode(String value) {
+        return URLEncoder.encode(value, StandardCharsets.UTF_8);
     }
 
 }
