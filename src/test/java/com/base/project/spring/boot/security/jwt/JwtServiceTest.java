@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.Base64;
+import java.util.Optional;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -29,7 +30,8 @@ class JwtServiceTest {
     }
 
     private JwtService newService(String secret, Duration accessTtl, Duration refreshTtl, String issuer) {
-        JwtService service = new JwtService(new JwtProperties(secret, accessTtl, refreshTtl, issuer));
+        JwtService service = new JwtService(
+                new JwtProperties(secret, accessTtl, refreshTtl, Duration.ofMinutes(5), issuer));
         service.init();
         return service;
     }
@@ -91,9 +93,43 @@ class JwtServiceTest {
     void init_rejectsSecretShorterThan256Bits() {
         JwtService weak = new JwtService(
                 new JwtProperties(Base64.getEncoder().encodeToString("too-short".getBytes(StandardCharsets.UTF_8)),
-                        Duration.ofMinutes(15), Duration.ofDays(7), "test-issuer"));
+                        Duration.ofMinutes(15), Duration.ofDays(7), Duration.ofMinutes(5), "test-issuer"));
 
         assertThatThrownBy(weak::init).isInstanceOf(IllegalStateException.class);
+    }
+
+    @Test
+    void generateMfaToken_producesMfaTypeToken() {
+        JwtService.IssuedToken issued = jwtService.generateMfaToken("rafael@example.com", Role.USER);
+
+        Claims claims = jwtService.parseAndValidate(issued.token());
+        assertThat(jwtService.extractTokenType(claims)).isEqualTo(TokenType.MFA);
+    }
+
+    @Test
+    void parseAndValidateWithType_whenTypeMatches_returnsClaims() {
+        JwtService.IssuedToken issued = jwtService.generateRefreshToken("rafael@example.com", Role.USER);
+
+        Optional<Claims> claims = jwtService.parseAndValidate(issued.token(), TokenType.REFRESH);
+
+        assertThat(claims).isPresent();
+        assertThat(claims.get().getSubject()).isEqualTo("rafael@example.com");
+    }
+
+    @Test
+    void parseAndValidateWithType_whenTypeMismatches_returnsEmpty() {
+        JwtService.IssuedToken issued = jwtService.generateAccessToken("rafael@example.com", Role.USER);
+
+        assertThat(jwtService.parseAndValidate(issued.token(), TokenType.REFRESH)).isEmpty();
+    }
+
+    @Test
+    void parseAndValidateWithType_stillThrowsOnTamperedToken() {
+        JwtService.IssuedToken issued = jwtService.generateAccessToken("rafael@example.com", Role.USER);
+        String tampered = issued.token().substring(0, issued.token().length() - 4) + "abcd";
+
+        assertThatThrownBy(() -> jwtService.parseAndValidate(tampered, TokenType.ACCESS))
+                .isInstanceOf(JwtException.class);
     }
 
 }

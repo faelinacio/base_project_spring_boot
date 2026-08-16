@@ -36,6 +36,15 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         return build(HttpStatus.UNAUTHORIZED, ex.getMessage(), req);
     }
 
+    // Covers InvalidVerificationTokenException, EmailNotVerifiedException, InvalidTotpCodeException,
+    // TotpSetupNotStartedException, TotpAlreadyEnabledException and InvalidMfaTokenException: each just
+    // pairs a fixed HTTP status with its own message, so they carry that status on themselves (see
+    // ApiException) instead of needing one handler method apiece here.
+    @ExceptionHandler(ApiException.class)
+    public ResponseEntity<ErrorResponse> handleApiException(ApiException ex, HttpServletRequest req) {
+        return build(ex.getStatus(), ex.getMessage(), req);
+    }
+
     @ExceptionHandler(BadCredentialsException.class)
     public ResponseEntity<ErrorResponse> handleBadCredentials(BadCredentialsException ex, HttpServletRequest req) {
         // Deliberately generic: never reveal whether the email or the password was wrong.

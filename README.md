@@ -37,13 +37,33 @@ Other `development-environment` targets: `make up`/`make down` (start/stop Postg
 `make migrate` (re-run Flyway against an already-running Postgres), `make reset` (wipe the local
 database volume), `make logs` (tail Postgres logs). Run `make help` to list them.
 
-Running without the `dev` profile (e.g. in staging/production) requires setting `DB_URL`,
-`DB_USERNAME`, `DB_PASSWORD`, `JWT_SECRET`, `JWT_ACCESS_TOKEN_EXPIRATION`,
-`JWT_REFRESH_TOKEN_EXPIRATION`, `JWT_ISSUER` and `CORS_ALLOWED_ORIGINS`. Generate a JWT secret with:
+Running without the `dev` profile (e.g. in staging/production) requires setting every variable
+below — nothing has a fallback outside the `dev` profile, so the app refuses to start if one is
+missing:
+
+- Database: `DB_URL`, `DB_USERNAME`, `DB_PASSWORD`
+- JWT: `JWT_SECRET`, `JWT_ACCESS_TOKEN_EXPIRATION`, `JWT_REFRESH_TOKEN_EXPIRATION`,
+  `JWT_MFA_TOKEN_EXPIRATION`, `JWT_ISSUER`
+- CORS: `CORS_ALLOWED_ORIGINS`
+- Email verification: `EMAIL_VERIFICATION_BASE_URL` (frontend route the verification link points
+  to), `EMAIL_VERIFICATION_TOKEN_EXPIRATION`
+- Outbound mail (SMTP): `MAIL_HOST`, `MAIL_PORT`, `MAIL_USERNAME`, `MAIL_PASSWORD`,
+  `MAIL_FROM_ADDRESS`
+- Google OAuth2 login: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` (create both for free at the
+  [Google Cloud Console](https://console.cloud.google.com/apis/credentials); redirect URI is
+  `<base-url>/login/oauth2/code/google`), `OAUTH2_REDIRECT_URI` (frontend route that receives the
+  issued tokens after a successful Google login)
+
+Generate a JWT secret with:
 
 ```shell
 openssl rand -base64 32
 ```
+
+In the `dev` profile, the database, JWT and mail settings have safe local-only defaults (mail is
+just logged to the console instead of actually sent), but `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`
+still fall back to a non-functional placeholder — the app boots fine, but "Sign in with Google"
+won't work until you export real values for those two.
 
 ## Project structure
 
@@ -53,10 +73,14 @@ Classic layered architecture, package-by-layer:
 - `usecase/` — single-purpose business operations (annotated `@UseCase` instead of `@Service`),
   each with one public `execute(...)` method
 - `repository/` — Spring Data JPA repository interfaces
-- `domain/` — JPA entities (`User`, `RefreshToken`, `Role`)
+- `domain/` — JPA entities (`User`, `RefreshToken`, `EmailVerificationToken`, `Role`)
 - `dto/` — request/response payloads (+ `dto/validation` for the custom `@ValidPassword` check)
-- `security/` — JWT issuance/validation and Spring Security wiring (`security/jwt` subpackage)
-- `config/` — `SecurityConfig`, `CorsProperties`
+- `security/` — JWT issuance/validation and Spring Security wiring (`security/jwt`), TOTP 2FA
+  (`security/totp`), Google login (`security/oauth2`)
+- `email/` — outbound email abstraction (`EmailSender`): logs to the console in `dev`, real SMTP
+  otherwise
+- `config/` — `SecurityConfig` and the app's `@ConfigurationProperties` records (CORS, email
+  verification, OAuth2 redirect)
 - `exception/` — `GlobalExceptionHandler` and domain exceptions
 
 Entity primary keys are `UUID`s (`GenerationType.UUID`), not auto-increment integers.

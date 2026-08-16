@@ -38,7 +38,7 @@ public class User {
     @Column(nullable = false, unique = true)
     private String email;
 
-    @Column(nullable = false)
+    /** Null for accounts created via an OAuth provider only (e.g. Google) with no local password. */
     @ToString.Exclude
     private String password;
 
@@ -48,6 +48,20 @@ public class User {
 
     @Column(nullable = false)
     private boolean enabled;
+
+    @Column(name = "email_verified", nullable = false)
+    private boolean emailVerified;
+
+    /** Google's stable subject id, set once a Google login is linked to this account. Null otherwise. */
+    @Column(name = "google_id", unique = true)
+    private String googleId;
+
+    @Column(name = "totp_secret")
+    @ToString.Exclude
+    private String totpSecret;
+
+    @Column(name = "totp_enabled", nullable = false)
+    private boolean totpEnabled;
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)

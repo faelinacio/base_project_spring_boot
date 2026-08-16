@@ -36,11 +36,14 @@ class RegisterUserUseCaseTest {
     @Mock
     private TokenIssuer tokenIssuer;
 
+    @Mock
+    private EmailVerificationIssuer emailVerificationIssuer;
+
     private RegisterUserUseCase useCase;
 
     @org.junit.jupiter.api.BeforeEach
     void setUp() {
-        useCase = new RegisterUserUseCase(userRepository, passwordEncoder, tokenIssuer);
+        useCase = new RegisterUserUseCase(userRepository, passwordEncoder, tokenIssuer, emailVerificationIssuer);
     }
 
     @Test
@@ -55,6 +58,7 @@ class RegisterUserUseCaseTest {
         });
         AuthResponse expected = new AuthResponse("access", "refresh", "Bearer", 900);
         when(tokenIssuer.issueFor(eq("rafael@example.com"), eq(Role.USER), any(UUID.class))).thenReturn(expected);
+        when(emailVerificationIssuer.issueToken(any(User.class))).thenReturn("raw-verification-token");
 
         AuthResponse result = useCase.execute(request);
 
@@ -67,6 +71,9 @@ class RegisterUserUseCaseTest {
         assertThat(savedUser.getValue().getPassword()).isEqualTo("encoded-hash");
         assertThat(savedUser.getValue().getRole()).isEqualTo(Role.USER);
         assertThat(savedUser.getValue().isEnabled()).isTrue();
+        assertThat(savedUser.getValue().isEmailVerified()).isFalse();
+        verify(emailVerificationIssuer).issueToken(savedUser.getValue());
+        verify(emailVerificationIssuer).sendVerificationEmail(savedUser.getValue(), "raw-verification-token");
     }
 
     @Test
@@ -79,6 +86,7 @@ class RegisterUserUseCaseTest {
 
         verify(userRepository, never()).save(any());
         verify(tokenIssuer, never()).issueFor(any(), any(), any());
+        verify(emailVerificationIssuer, never()).issueToken(any());
     }
 
 }

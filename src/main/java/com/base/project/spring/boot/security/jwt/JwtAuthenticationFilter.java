@@ -1,6 +1,7 @@
 package com.base.project.spring.boot.security.jwt;
 
 import java.io.IOException;
+import java.util.Optional;
 
 import org.jspecify.annotations.NonNull;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -38,6 +39,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtService jwtService;
     private final UserDetailsService userDetailsService;
+    private final SecurityErrorResponseWriter errorResponseWriter;
     private final RequestMatcher permitAllMatcher = SecurityPaths.publicEndpointsMatcher();
 
     @Override
@@ -59,11 +61,20 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         try {
             if (SecurityContextHolder.getContext().getAuthentication() == null) {
-                Claims claims = jwtService.parseAndValidate(token);
+                Optional<Claims> accessClaims = jwtService.parseAndValidate(token, TokenType.ACCESS);
 
-                if (jwtService.extractTokenType(claims) == TokenType.ACCESS) {
-                    String email = jwtService.extractUsername(claims);
+                if (accessClaims.isPresent()) {
+                    String email = jwtService.extractUsername(accessClaims.get());
                     UserPrincipal principal = (UserPrincipal) userDetailsService.loadUserByUsername(email);
+
+                    if (!principal.isEmailVerified()) {
+                        // Closes the gap where a token issued at /register (before the user ever
+                        // verifies) could otherwise be used against every protected endpoint —
+                        // LoginUseCase's verification gate only re-applies on a fresh /login.
+                        errorResponseWriter.write(response, HttpServletResponse.SC_FORBIDDEN, "Forbidden",
+                                "Please verify your email before using the API", request.getRequestURI());
+                        return;
+                    }
 
                     var authToken = new UsernamePasswordAuthenticationToken(principal, null,
                             principal.getAuthorities());
