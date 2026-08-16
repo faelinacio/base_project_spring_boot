@@ -36,37 +36,13 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         return build(HttpStatus.UNAUTHORIZED, ex.getMessage(), req);
     }
 
-    @ExceptionHandler(InvalidVerificationTokenException.class)
-    public ResponseEntity<ErrorResponse> handleInvalidVerificationToken(InvalidVerificationTokenException ex,
-            HttpServletRequest req) {
-        return build(HttpStatus.BAD_REQUEST, ex.getMessage(), req);
-    }
-
-    @ExceptionHandler(EmailNotVerifiedException.class)
-    public ResponseEntity<ErrorResponse> handleEmailNotVerified(EmailNotVerifiedException ex, HttpServletRequest req) {
-        return build(HttpStatus.FORBIDDEN, "Please verify your email before logging in", req);
-    }
-
-    @ExceptionHandler(InvalidTotpCodeException.class)
-    public ResponseEntity<ErrorResponse> handleInvalidTotpCode(InvalidTotpCodeException ex, HttpServletRequest req) {
-        return build(HttpStatus.UNAUTHORIZED, ex.getMessage(), req);
-    }
-
-    @ExceptionHandler(TotpSetupNotStartedException.class)
-    public ResponseEntity<ErrorResponse> handleTotpSetupNotStarted(TotpSetupNotStartedException ex,
-            HttpServletRequest req) {
-        return build(HttpStatus.BAD_REQUEST, ex.getMessage(), req);
-    }
-
-    @ExceptionHandler(TotpAlreadyEnabledException.class)
-    public ResponseEntity<ErrorResponse> handleTotpAlreadyEnabled(TotpAlreadyEnabledException ex,
-            HttpServletRequest req) {
-        return build(HttpStatus.CONFLICT, ex.getMessage(), req);
-    }
-
-    @ExceptionHandler(InvalidMfaTokenException.class)
-    public ResponseEntity<ErrorResponse> handleInvalidMfaToken(InvalidMfaTokenException ex, HttpServletRequest req) {
-        return build(HttpStatus.UNAUTHORIZED, ex.getMessage(), req);
+    // Covers InvalidVerificationTokenException, EmailNotVerifiedException, InvalidTotpCodeException,
+    // TotpSetupNotStartedException, TotpAlreadyEnabledException and InvalidMfaTokenException: each just
+    // pairs a fixed HTTP status with its own message, so they carry that status on themselves (see
+    // ApiException) instead of needing one handler method apiece here.
+    @ExceptionHandler(ApiException.class)
+    public ResponseEntity<ErrorResponse> handleApiException(ApiException ex, HttpServletRequest req) {
+        return build(ex.getStatus(), ex.getMessage(), req);
     }
 
     @ExceptionHandler(BadCredentialsException.class)

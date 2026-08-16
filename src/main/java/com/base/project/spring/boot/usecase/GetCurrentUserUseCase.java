@@ -3,7 +3,6 @@ package com.base.project.spring.boot.usecase;
 import java.util.UUID;
 
 import com.base.project.spring.boot.domain.User;
-import com.base.project.spring.boot.repository.UserRepository;
 
 import lombok.RequiredArgsConstructor;
 
@@ -11,11 +10,10 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class GetCurrentUserUseCase {
 
-    private final UserRepository userRepository;
+    private final CurrentUserLoader currentUserLoader;
 
     public User execute(UUID userId) {
-        return userRepository.findById(userId)
-                .orElseThrow(() -> new IllegalStateException("Authenticated user no longer exists"));
+        return currentUserLoader.byId(userId);
     }
 
 }

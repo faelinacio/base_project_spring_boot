@@ -7,7 +7,6 @@ import com.base.project.spring.boot.domain.User;
 import com.base.project.spring.boot.dto.LoginRequest;
 import com.base.project.spring.boot.dto.LoginResponse;
 import com.base.project.spring.boot.exception.EmailNotVerifiedException;
-import com.base.project.spring.boot.repository.UserRepository;
 import com.base.project.spring.boot.security.jwt.JwtService;
 
 import lombok.RequiredArgsConstructor;
@@ -17,7 +16,7 @@ import lombok.RequiredArgsConstructor;
 public class LoginUseCase {
 
     private final AuthenticationManager authenticationManager;
-    private final UserRepository userRepository;
+    private final CurrentUserLoader currentUserLoader;
     private final TokenIssuer tokenIssuer;
     private final JwtService jwtService;
 
@@ -25,11 +24,10 @@ public class LoginUseCase {
         authenticationManager
                 .authenticate(new UsernamePasswordAuthenticationToken(request.email(), request.password()));
 
-        User user = userRepository.findByEmail(request.email())
-                .orElseThrow(() -> new IllegalStateException("Authenticated user no longer exists"));
+        User user = currentUserLoader.byEmail(request.email());
 
         if (!user.isEmailVerified()) {
-            throw new EmailNotVerifiedException(user.getEmail());
+            throw new EmailNotVerifiedException();
         }
 
         if (user.isTotpEnabled()) {

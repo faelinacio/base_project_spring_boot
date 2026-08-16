@@ -1,9 +1,12 @@
 package com.base.project.spring.boot.exception;
 
-public class TotpAlreadyEnabledException extends RuntimeException {
+import org.springframework.http.HttpStatus;
+
+public class TotpAlreadyEnabledException extends ApiException {
 
     public TotpAlreadyEnabledException() {
-        super("TOTP is already enabled; disable it (with a valid code) before setting up a new secret");
+        super(HttpStatus.CONFLICT,
+                "TOTP is already enabled; disable it (with a valid code) before setting up a new secret");
     }
 
 }

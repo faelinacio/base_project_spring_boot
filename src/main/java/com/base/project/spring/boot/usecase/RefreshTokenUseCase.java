@@ -45,13 +45,10 @@ public class RefreshTokenUseCase {
     private Claims validateAndConsume(String rawToken) {
         Claims claims;
         try {
-            claims = jwtService.parseAndValidate(rawToken);
+            claims = jwtService.parseAndValidate(rawToken, TokenType.REFRESH)
+                    .orElseThrow(() -> new InvalidRefreshTokenException("Token is not a refresh token"));
         } catch (JwtException | IllegalArgumentException e) {
             throw new InvalidRefreshTokenException("Refresh token is invalid or expired");
-        }
-
-        if (jwtService.extractTokenType(claims) != TokenType.REFRESH) {
-            throw new InvalidRefreshTokenException("Token is not a refresh token");
         }
 
         RefreshToken stored = refreshTokenRepository.findByTokenHash(hasher.hash(rawToken))

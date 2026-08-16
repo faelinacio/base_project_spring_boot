@@ -8,7 +8,6 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import java.util.Optional;
 import java.util.UUID;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -26,7 +25,6 @@ import com.base.project.spring.boot.dto.AuthResponse;
 import com.base.project.spring.boot.dto.LoginRequest;
 import com.base.project.spring.boot.dto.LoginResponse;
 import com.base.project.spring.boot.exception.EmailNotVerifiedException;
-import com.base.project.spring.boot.repository.UserRepository;
 import com.base.project.spring.boot.security.jwt.JwtService;
 
 @ExtendWith(MockitoExtension.class)
@@ -36,7 +34,7 @@ class LoginUseCaseTest {
     private AuthenticationManager authenticationManager;
 
     @Mock
-    private UserRepository userRepository;
+    private CurrentUserLoader currentUserLoader;
 
     @Mock
     private TokenIssuer tokenIssuer;
@@ -48,7 +46,7 @@ class LoginUseCaseTest {
 
     @BeforeEach
     void setUp() {
-        useCase = new LoginUseCase(authenticationManager, userRepository, tokenIssuer, jwtService);
+        useCase = new LoginUseCase(authenticationManager, currentUserLoader, tokenIssuer, jwtService);
     }
 
     @Test
@@ -57,7 +55,7 @@ class LoginUseCaseTest {
         UUID userId = UUID.randomUUID();
         User user = User.builder().id(userId).email("rafael@example.com").role(Role.USER).enabled(true)
                 .emailVerified(true).build();
-        when(userRepository.findByEmail("rafael@example.com")).thenReturn(Optional.of(user));
+        when(currentUserLoader.byEmail("rafael@example.com")).thenReturn(user);
         AuthResponse expected = new AuthResponse("access", "refresh", "Bearer", 900);
         when(tokenIssuer.issueFor("rafael@example.com", Role.USER, userId)).thenReturn(expected);
 
@@ -77,9 +75,10 @@ class LoginUseCaseTest {
     }
 
     @Test
-    void execute_whenUserVanishesAfterAuthentication_throwsIllegalState() {
+    void execute_whenUserVanishesAfterAuthentication_propagatesCurrentUserLoaderException() {
         LoginRequest request = new LoginRequest("rafael@example.com", "supersecret123");
-        when(userRepository.findByEmail("rafael@example.com")).thenReturn(Optional.empty());
+        when(currentUserLoader.byEmail("rafael@example.com"))
+                .thenThrow(new IllegalStateException("Authenticated user no longer exists"));
 
         assertThatThrownBy(() -> useCase.execute(request)).isInstanceOf(IllegalStateException.class);
     }
@@ -89,7 +88,7 @@ class LoginUseCaseTest {
         LoginRequest request = new LoginRequest("rafael@example.com", "supersecret123");
         User user = User.builder().id(UUID.randomUUID()).email("rafael@example.com").role(Role.USER).enabled(true)
                 .emailVerified(false).build();
-        when(userRepository.findByEmail("rafael@example.com")).thenReturn(Optional.of(user));
+        when(currentUserLoader.byEmail("rafael@example.com")).thenReturn(user);
 
         assertThatThrownBy(() -> useCase.execute(request)).isInstanceOf(EmailNotVerifiedException.class);
 
@@ -102,7 +101,7 @@ class LoginUseCaseTest {
         UUID userId = UUID.randomUUID();
         User user = User.builder().id(userId).email("rafael@example.com").role(Role.USER).enabled(true)
                 .emailVerified(true).totpEnabled(true).build();
-        when(userRepository.findByEmail("rafael@example.com")).thenReturn(Optional.of(user));
+        when(currentUserLoader.byEmail("rafael@example.com")).thenReturn(user);
         JwtService.IssuedToken mfaToken = new JwtService.IssuedToken("mfa-token", null);
         when(jwtService.generateMfaToken("rafael@example.com", Role.USER)).thenReturn(mfaToken);
 

@@ -1,9 +1,11 @@
 package com.base.project.spring.boot.exception;
 
-public class TotpSetupNotStartedException extends RuntimeException {
+import org.springframework.http.HttpStatus;
+
+public class TotpSetupNotStartedException extends ApiException {
 
     public TotpSetupNotStartedException() {
-        super("TOTP is not set up for this account");
+        super(HttpStatus.BAD_REQUEST, "TOTP is not set up for this account");
     }
 
 }

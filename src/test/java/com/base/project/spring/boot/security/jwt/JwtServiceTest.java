@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.Base64;
+import java.util.Optional;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -103,6 +104,32 @@ class JwtServiceTest {
 
         Claims claims = jwtService.parseAndValidate(issued.token());
         assertThat(jwtService.extractTokenType(claims)).isEqualTo(TokenType.MFA);
+    }
+
+    @Test
+    void parseAndValidateWithType_whenTypeMatches_returnsClaims() {
+        JwtService.IssuedToken issued = jwtService.generateRefreshToken("rafael@example.com", Role.USER);
+
+        Optional<Claims> claims = jwtService.parseAndValidate(issued.token(), TokenType.REFRESH);
+
+        assertThat(claims).isPresent();
+        assertThat(claims.get().getSubject()).isEqualTo("rafael@example.com");
+    }
+
+    @Test
+    void parseAndValidateWithType_whenTypeMismatches_returnsEmpty() {
+        JwtService.IssuedToken issued = jwtService.generateAccessToken("rafael@example.com", Role.USER);
+
+        assertThat(jwtService.parseAndValidate(issued.token(), TokenType.REFRESH)).isEmpty();
+    }
+
+    @Test
+    void parseAndValidateWithType_stillThrowsOnTamperedToken() {
+        JwtService.IssuedToken issued = jwtService.generateAccessToken("rafael@example.com", Role.USER);
+        String tampered = issued.token().substring(0, issued.token().length() - 4) + "abcd";
+
+        assertThatThrownBy(() -> jwtService.parseAndValidate(tampered, TokenType.ACCESS))
+                .isInstanceOf(JwtException.class);
     }
 
 }

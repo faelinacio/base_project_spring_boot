@@ -1,9 +1,11 @@
 package com.base.project.spring.boot.exception;
 
-public class InvalidTotpCodeException extends RuntimeException {
+import org.springframework.http.HttpStatus;
+
+public class InvalidTotpCodeException extends ApiException {
 
     public InvalidTotpCodeException() {
-        super("Invalid or expired authentication code");
+        super(HttpStatus.UNAUTHORIZED, "Invalid or expired authentication code");
     }
 
 }

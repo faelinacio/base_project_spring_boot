@@ -33,13 +33,10 @@ public class VerifyTotpLoginUseCase {
     public AuthResponse execute(TotpLoginRequest request) {
         Claims claims;
         try {
-            claims = jwtService.parseAndValidate(request.mfaToken());
+            claims = jwtService.parseAndValidate(request.mfaToken(), TokenType.MFA)
+                    .orElseThrow(() -> new InvalidMfaTokenException("Token is not an MFA token"));
         } catch (JwtException | IllegalArgumentException e) {
             throw new InvalidMfaTokenException("MFA token is invalid or expired");
-        }
-
-        if (jwtService.extractTokenType(claims) != TokenType.MFA) {
-            throw new InvalidMfaTokenException("Token is not an MFA token");
         }
 
         User user = userRepository.findByEmail(jwtService.extractUsername(claims))

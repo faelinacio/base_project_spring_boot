@@ -75,8 +75,7 @@ class RefreshTokenUseCaseTest {
     @Test
     void execute_whenTokenValid_rotatesAndReturnsNewTokens() {
         Claims claims = claimsWithType("REFRESH");
-        when(jwtService.parseAndValidate(RAW_TOKEN)).thenReturn(claims);
-        when(jwtService.extractTokenType(claims)).thenReturn(TokenType.REFRESH);
+        when(jwtService.parseAndValidate(RAW_TOKEN, TokenType.REFRESH)).thenReturn(Optional.of(claims));
 
         UUID userId = UUID.randomUUID();
         RefreshToken stored = storedToken(userId, false, LocalDateTime.now(ZoneOffset.UTC).plusDays(1));
@@ -96,7 +95,8 @@ class RefreshTokenUseCaseTest {
 
     @Test
     void execute_whenUnderlyingJwtInvalid_throwsInvalidRefreshTokenException() {
-        when(jwtService.parseAndValidate(RAW_TOKEN)).thenThrow(new SignatureException("bad signature"));
+        when(jwtService.parseAndValidate(RAW_TOKEN, TokenType.REFRESH))
+                .thenThrow(new SignatureException("bad signature"));
 
         assertThatThrownBy(() -> useCase.execute(RAW_TOKEN)).isInstanceOf(InvalidRefreshTokenException.class)
                 .hasMessageContaining("invalid or expired");
@@ -104,9 +104,7 @@ class RefreshTokenUseCaseTest {
 
     @Test
     void execute_whenTokenIsAnAccessToken_throwsInvalidRefreshTokenException() {
-        Claims claims = claimsWithType("ACCESS");
-        when(jwtService.parseAndValidate(RAW_TOKEN)).thenReturn(claims);
-        when(jwtService.extractTokenType(claims)).thenReturn(TokenType.ACCESS);
+        when(jwtService.parseAndValidate(RAW_TOKEN, TokenType.REFRESH)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> useCase.execute(RAW_TOKEN)).isInstanceOf(InvalidRefreshTokenException.class)
                 .hasMessageContaining("not a refresh token");
@@ -115,8 +113,7 @@ class RefreshTokenUseCaseTest {
     @Test
     void execute_whenTokenUnknown_throwsInvalidRefreshTokenException() {
         Claims claims = claimsWithType("REFRESH");
-        when(jwtService.parseAndValidate(RAW_TOKEN)).thenReturn(claims);
-        when(jwtService.extractTokenType(claims)).thenReturn(TokenType.REFRESH);
+        when(jwtService.parseAndValidate(RAW_TOKEN, TokenType.REFRESH)).thenReturn(Optional.of(claims));
         when(refreshTokenRepository.findByTokenHash(anyString())).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> useCase.execute(RAW_TOKEN)).isInstanceOf(InvalidRefreshTokenException.class)
@@ -126,8 +123,7 @@ class RefreshTokenUseCaseTest {
     @Test
     void execute_whenTokenAlreadyRevoked_throwsInvalidRefreshTokenException() {
         Claims claims = claimsWithType("REFRESH");
-        when(jwtService.parseAndValidate(RAW_TOKEN)).thenReturn(claims);
-        when(jwtService.extractTokenType(claims)).thenReturn(TokenType.REFRESH);
+        when(jwtService.parseAndValidate(RAW_TOKEN, TokenType.REFRESH)).thenReturn(Optional.of(claims));
         RefreshToken stored = storedToken(UUID.randomUUID(), true, LocalDateTime.now(ZoneOffset.UTC).plusDays(1));
         when(refreshTokenRepository.findByTokenHash(hasher.hash(RAW_TOKEN))).thenReturn(Optional.of(stored));
 
@@ -138,8 +134,7 @@ class RefreshTokenUseCaseTest {
     @Test
     void execute_whenTokenExpired_throwsInvalidRefreshTokenException() {
         Claims claims = claimsWithType("REFRESH");
-        when(jwtService.parseAndValidate(RAW_TOKEN)).thenReturn(claims);
-        when(jwtService.extractTokenType(claims)).thenReturn(TokenType.REFRESH);
+        when(jwtService.parseAndValidate(RAW_TOKEN, TokenType.REFRESH)).thenReturn(Optional.of(claims));
         RefreshToken stored = storedToken(UUID.randomUUID(), false, LocalDateTime.now(ZoneOffset.UTC).minusMinutes(1));
         when(refreshTokenRepository.findByTokenHash(hasher.hash(RAW_TOKEN))).thenReturn(Optional.of(stored));
 
@@ -150,8 +145,7 @@ class RefreshTokenUseCaseTest {
     @Test
     void execute_whenUserNoLongerExists_throwsInvalidRefreshTokenException() {
         Claims claims = claimsWithType("REFRESH");
-        when(jwtService.parseAndValidate(RAW_TOKEN)).thenReturn(claims);
-        when(jwtService.extractTokenType(claims)).thenReturn(TokenType.REFRESH);
+        when(jwtService.parseAndValidate(RAW_TOKEN, TokenType.REFRESH)).thenReturn(Optional.of(claims));
         RefreshToken stored = storedToken(UUID.randomUUID(), false, LocalDateTime.now(ZoneOffset.UTC).plusDays(1));
         when(refreshTokenRepository.findByTokenHash(hasher.hash(RAW_TOKEN))).thenReturn(Optional.of(stored));
         when(userRepository.findByEmail(EMAIL)).thenReturn(Optional.empty());
@@ -163,8 +157,7 @@ class RefreshTokenUseCaseTest {
     @Test
     void execute_whenAccountDisabled_throwsInvalidRefreshTokenException_andConsumesToken() {
         Claims claims = claimsWithType("REFRESH");
-        when(jwtService.parseAndValidate(RAW_TOKEN)).thenReturn(claims);
-        when(jwtService.extractTokenType(claims)).thenReturn(TokenType.REFRESH);
+        when(jwtService.parseAndValidate(RAW_TOKEN, TokenType.REFRESH)).thenReturn(Optional.of(claims));
         UUID userId = UUID.randomUUID();
         RefreshToken stored = storedToken(userId, false, LocalDateTime.now(ZoneOffset.UTC).plusDays(1));
         when(refreshTokenRepository.findByTokenHash(hasher.hash(RAW_TOKEN))).thenReturn(Optional.of(stored));

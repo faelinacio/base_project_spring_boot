@@ -1,6 +1,7 @@
 package com.base.project.spring.boot.security.jwt;
 
 import java.io.IOException;
+import java.util.Optional;
 
 import org.jspecify.annotations.NonNull;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -60,10 +61,10 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         try {
             if (SecurityContextHolder.getContext().getAuthentication() == null) {
-                Claims claims = jwtService.parseAndValidate(token);
+                Optional<Claims> accessClaims = jwtService.parseAndValidate(token, TokenType.ACCESS);
 
-                if (jwtService.extractTokenType(claims) == TokenType.ACCESS) {
-                    String email = jwtService.extractUsername(claims);
+                if (accessClaims.isPresent()) {
+                    String email = jwtService.extractUsername(accessClaims.get());
                     UserPrincipal principal = (UserPrincipal) userDetailsService.loadUserByUsername(email);
 
                     if (!principal.isEmailVerified()) {

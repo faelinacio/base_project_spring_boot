@@ -17,12 +17,12 @@ import lombok.RequiredArgsConstructor;
 public class EnableTotpUseCase {
 
     private final UserRepository userRepository;
+    private final CurrentUserLoader currentUserLoader;
     private final TotpService totpService;
 
     @Transactional
     public void execute(UUID userId, String code) {
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new IllegalStateException("Authenticated user no longer exists"));
+        User user = currentUserLoader.byId(userId);
 
         if (user.getTotpSecret() == null) {
             throw new TotpSetupNotStartedException();

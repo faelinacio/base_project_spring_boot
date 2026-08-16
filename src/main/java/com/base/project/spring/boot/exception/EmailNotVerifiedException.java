@@ -1,9 +1,11 @@
 package com.base.project.spring.boot.exception;
 
-public class EmailNotVerifiedException extends RuntimeException {
+import org.springframework.http.HttpStatus;
 
-    public EmailNotVerifiedException(String email) {
-        super("Email '" + email + "' has not been verified yet");
+public class EmailNotVerifiedException extends ApiException {
+
+    public EmailNotVerifiedException() {
+        super(HttpStatus.FORBIDDEN, "Please verify your email before logging in");
     }
 
 }

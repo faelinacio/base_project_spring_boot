@@ -1,9 +1,11 @@
 package com.base.project.spring.boot.exception;
 
-public class InvalidMfaTokenException extends RuntimeException {
+import org.springframework.http.HttpStatus;
+
+public class InvalidMfaTokenException extends ApiException {
 
     public InvalidMfaTokenException(String message) {
-        super(message);
+        super(HttpStatus.UNAUTHORIZED, message);
     }
 
 }

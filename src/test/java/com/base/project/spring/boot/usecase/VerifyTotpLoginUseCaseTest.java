@@ -59,8 +59,7 @@ class VerifyTotpLoginUseCaseTest {
         UUID userId = UUID.randomUUID();
         User user = User.builder().id(userId).email("rafael@example.com").role(Role.USER).totpEnabled(true)
                 .totpSecret("secret").build();
-        when(jwtService.parseAndValidate("mfa-token")).thenReturn(claims);
-        when(jwtService.extractTokenType(claims)).thenReturn(TokenType.MFA);
+        when(jwtService.parseAndValidate("mfa-token", TokenType.MFA)).thenReturn(Optional.of(claims));
         when(jwtService.extractUsername(claims)).thenReturn("rafael@example.com");
         when(userRepository.findByEmail("rafael@example.com")).thenReturn(Optional.of(user));
         when(totpService.verifyCode("secret", "123456")).thenReturn(true);
@@ -75,7 +74,7 @@ class VerifyTotpLoginUseCaseTest {
     @Test
     void execute_withExpiredMfaToken_throwsInvalidMfaToken() {
         TotpLoginRequest request = new TotpLoginRequest("mfa-token", "123456");
-        when(jwtService.parseAndValidate("mfa-token"))
+        when(jwtService.parseAndValidate("mfa-token", TokenType.MFA))
                 .thenThrow(new ExpiredJwtException(null, Jwts.claims().build(), "expired"));
 
         assertThatThrownBy(() -> useCase.execute(request)).isInstanceOf(InvalidMfaTokenException.class);
@@ -84,8 +83,7 @@ class VerifyTotpLoginUseCaseTest {
     @Test
     void execute_withNonMfaTokenType_throwsInvalidMfaToken() {
         TotpLoginRequest request = new TotpLoginRequest("access-token", "123456");
-        when(jwtService.parseAndValidate("access-token")).thenReturn(claims);
-        when(jwtService.extractTokenType(claims)).thenReturn(TokenType.ACCESS);
+        when(jwtService.parseAndValidate("access-token", TokenType.MFA)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> useCase.execute(request)).isInstanceOf(InvalidMfaTokenException.class);
     }
@@ -95,8 +93,7 @@ class VerifyTotpLoginUseCaseTest {
         TotpLoginRequest request = new TotpLoginRequest("mfa-token", "000000");
         User user = User.builder().id(UUID.randomUUID()).email("rafael@example.com").totpEnabled(true)
                 .totpSecret("secret").build();
-        when(jwtService.parseAndValidate("mfa-token")).thenReturn(claims);
-        when(jwtService.extractTokenType(claims)).thenReturn(TokenType.MFA);
+        when(jwtService.parseAndValidate("mfa-token", TokenType.MFA)).thenReturn(Optional.of(claims));
         when(jwtService.extractUsername(claims)).thenReturn("rafael@example.com");
         when(userRepository.findByEmail("rafael@example.com")).thenReturn(Optional.of(user));
         when(totpService.verifyCode("secret", "000000")).thenReturn(false);

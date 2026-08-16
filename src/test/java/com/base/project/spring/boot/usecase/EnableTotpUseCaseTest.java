@@ -5,7 +5,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import java.util.Optional;
 import java.util.UUID;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -27,20 +26,23 @@ class EnableTotpUseCaseTest {
     private UserRepository userRepository;
 
     @Mock
+    private CurrentUserLoader currentUserLoader;
+
+    @Mock
     private TotpService totpService;
 
     private EnableTotpUseCase useCase;
 
     @BeforeEach
     void setUp() {
-        useCase = new EnableTotpUseCase(userRepository, totpService);
+        useCase = new EnableTotpUseCase(userRepository, currentUserLoader, totpService);
     }
 
     @Test
     void execute_withValidCode_enablesTotp() {
         UUID userId = UUID.randomUUID();
         User user = User.builder().id(userId).totpSecret("secret").totpEnabled(false).build();
-        when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+        when(currentUserLoader.byId(userId)).thenReturn(user);
         when(totpService.verifyCode("secret", "123456")).thenReturn(true);
 
         useCase.execute(userId, "123456");
@@ -53,7 +55,7 @@ class EnableTotpUseCaseTest {
     void execute_withoutPendingSetup_throws() {
         UUID userId = UUID.randomUUID();
         User user = User.builder().id(userId).totpSecret(null).build();
-        when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+        when(currentUserLoader.byId(userId)).thenReturn(user);
 
         assertThatThrownBy(() -> useCase.execute(userId, "123456")).isInstanceOf(TotpSetupNotStartedException.class);
     }
@@ -62,7 +64,7 @@ class EnableTotpUseCaseTest {
     void execute_withInvalidCode_throws() {
         UUID userId = UUID.randomUUID();
         User user = User.builder().id(userId).totpSecret("secret").totpEnabled(false).build();
-        when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+        when(currentUserLoader.byId(userId)).thenReturn(user);
         when(totpService.verifyCode("secret", "000000")).thenReturn(false);
 
         assertThatThrownBy(() -> useCase.execute(userId, "000000")).isInstanceOf(InvalidTotpCodeException.class);

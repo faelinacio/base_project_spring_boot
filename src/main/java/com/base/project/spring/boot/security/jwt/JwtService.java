@@ -5,6 +5,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.Base64;
 import java.util.Date;
+import java.util.Optional;
 import java.util.UUID;
 
 import javax.crypto.SecretKey;
@@ -75,6 +76,17 @@ public class JwtService {
     public Claims parseAndValidate(String token) {
         return Jwts.parser().verifyWith((SecretKey) signingKey).requireIssuer(properties.issuer()).build()
                 .parseSignedClaims(token).getPayload();
+    }
+
+    /**
+     * Same validation as {@link #parseAndValidate(String)}, plus a check that the token is the expected kind (e.g. a
+     * REFRESH token can't be used where an MFA token is expected). Still throws JwtException/IllegalArgumentException
+     * for a malformed/unsigned/expired token; returns empty (rather than throwing) when the token is otherwise valid
+     * but of the wrong {@link TokenType}, since callers each want a different exception/message for that case.
+     */
+    public Optional<Claims> parseAndValidate(String token, TokenType expectedType) {
+        Claims claims = parseAndValidate(token);
+        return extractTokenType(claims) == expectedType ? Optional.of(claims) : Optional.empty();
     }
 
     public String extractUsername(Claims claims) {
