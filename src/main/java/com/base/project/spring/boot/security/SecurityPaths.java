@@ -9,7 +9,8 @@ import org.springframework.security.web.util.matcher.RequestMatcher;
 /** Endpoints that don't require authentication, shared by SecurityConfig and JwtAuthenticationFilter. */
 public final class SecurityPaths {
 
-    public static final String[] PUBLIC_ENDPOINTS = { "/api/auth/**", "/error", "/oauth2/**", "/login/oauth2/**" };
+    public static final String[] PUBLIC_ENDPOINTS = { "/api/auth/**", "/error", "/oauth2/**", "/login/oauth2/**",
+            "/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html" };
 
     private SecurityPaths() {
     }

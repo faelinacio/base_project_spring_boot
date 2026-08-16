@@ -65,6 +65,16 @@ just logged to the console instead of actually sent), but `GOOGLE_CLIENT_ID`/`GO
 still fall back to a non-functional placeholder — the app boots fine, but "Sign in with Google"
 won't work until you export real values for those two.
 
+## API documentation
+
+The API is documented with OpenAPI 3 (springdoc-openapi). With the app running:
+
+- Swagger UI: `http://localhost:8080/swagger-ui.html`
+- Raw OpenAPI JSON: `http://localhost:8080/v3/api-docs`
+
+Both are public endpoints (no token required). For endpoints that do require one, click
+**Authorize** in Swagger UI and paste a bearer access token obtained from `/api/auth/login`.
+
 ## Project structure
 
 Classic layered architecture, package-by-layer:
