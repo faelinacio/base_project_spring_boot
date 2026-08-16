@@ -55,6 +55,11 @@ public class JwtService {
         return buildToken(subjectEmail, role, TokenType.REFRESH, properties.refreshTokenExpiration());
     }
 
+    /** Short-lived token proving password (or OAuth) authentication succeeded, pending the user's TOTP code. */
+    public IssuedToken generateMfaToken(String subjectEmail, Role role) {
+        return buildToken(subjectEmail, role, TokenType.MFA, properties.mfaTokenExpiration());
+    }
+
     private IssuedToken buildToken(String subjectEmail, Role role, TokenType type, Duration expiration) {
         Instant now = Instant.now();
         Instant expiresAt = now.plus(expiration);

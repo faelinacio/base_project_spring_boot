@@ -36,11 +36,14 @@ class RegisterUserUseCaseTest {
     @Mock
     private TokenIssuer tokenIssuer;
 
+    @Mock
+    private EmailVerificationIssuer emailVerificationIssuer;
+
     private RegisterUserUseCase useCase;
 
     @org.junit.jupiter.api.BeforeEach
     void setUp() {
-        useCase = new RegisterUserUseCase(userRepository, passwordEncoder, tokenIssuer);
+        useCase = new RegisterUserUseCase(userRepository, passwordEncoder, tokenIssuer, emailVerificationIssuer);
     }
 
     @Test
@@ -67,6 +70,8 @@ class RegisterUserUseCaseTest {
         assertThat(savedUser.getValue().getPassword()).isEqualTo("encoded-hash");
         assertThat(savedUser.getValue().getRole()).isEqualTo(Role.USER);
         assertThat(savedUser.getValue().isEnabled()).isTrue();
+        assertThat(savedUser.getValue().isEmailVerified()).isFalse();
+        verify(emailVerificationIssuer).issueFor(savedUser.getValue());
     }
 
     @Test
@@ -79,6 +84,7 @@ class RegisterUserUseCaseTest {
 
         verify(userRepository, never()).save(any());
         verify(tokenIssuer, never()).issueFor(any(), any(), any());
+        verify(emailVerificationIssuer, never()).issueFor(any());
     }
 
 }

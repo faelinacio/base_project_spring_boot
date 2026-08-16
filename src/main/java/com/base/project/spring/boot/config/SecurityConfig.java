@@ -4,6 +4,9 @@ import com.base.project.spring.boot.security.SecurityPaths;
 import com.base.project.spring.boot.security.jwt.JwtAccessDeniedHandler;
 import com.base.project.spring.boot.security.jwt.JwtAuthenticationEntryPoint;
 import com.base.project.spring.boot.security.jwt.JwtAuthenticationFilter;
+import com.base.project.spring.boot.security.oauth2.CustomOidcUserService;
+import com.base.project.spring.boot.security.oauth2.OAuth2LoginFailureHandler;
+import com.base.project.spring.boot.security.oauth2.OAuth2LoginSuccessHandler;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -34,18 +37,29 @@ public class SecurityConfig {
     private final JwtAuthenticationEntryPoint jwtAuthenticationEntryPoint;
     private final JwtAccessDeniedHandler jwtAccessDeniedHandler;
     private final CorsProperties corsProperties;
+    private final CustomOidcUserService customOidcUserService;
+    private final OAuth2LoginSuccessHandler oAuth2LoginSuccessHandler;
+    private final OAuth2LoginFailureHandler oAuth2LoginFailureHandler;
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http.csrf(AbstractHttpConfigurer::disable) // stateless JWT API, no browser session/cookie auth to protect
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
-                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                // IF_REQUIRED rather than STATELESS: the only thing that ever creates a session is the
+                // Google OAuth2 login handshake (Spring Security needs one to hold the authorization
+                // request between the redirect to Google and the callback). Every other endpoint is
+                // still authenticated per-request via the stateless JWT filter below and never touches
+                // the session.
+                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED))
                 .authorizeHttpRequests(auth -> auth.requestMatchers(SecurityPaths.PUBLIC_ENDPOINTS).permitAll()
                         .anyRequest().authenticated())
                 .exceptionHandling(ex -> ex.authenticationEntryPoint(jwtAuthenticationEntryPoint)
                         .accessDeniedHandler(jwtAccessDeniedHandler))
                 .addFilterBefore(jwtAuthenticationFilter,
                         org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter.class)
+                .oauth2Login(
+                        oauth2 -> oauth2.userInfoEndpoint(userInfo -> userInfo.oidcUserService(customOidcUserService))
+                                .successHandler(oAuth2LoginSuccessHandler).failureHandler(oAuth2LoginFailureHandler))
                 .headers(headers -> headers.frameOptions(HeadersConfigurer.FrameOptionsConfig::deny));
 
         return http.build();

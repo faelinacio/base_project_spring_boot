@@ -16,5 +16,7 @@ public record JwtProperties(
 
         @NotNull Duration refreshTokenExpiration,
 
+        @NotNull Duration mfaTokenExpiration,
+
         @NotBlank String issuer) {
 }

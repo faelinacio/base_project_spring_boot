@@ -5,6 +5,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.time.Instant;
 import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
@@ -24,12 +25,17 @@ import com.base.project.spring.boot.domain.Role;
 import com.base.project.spring.boot.domain.User;
 import com.base.project.spring.boot.dto.AuthResponse;
 import com.base.project.spring.boot.dto.LoginRequest;
+import com.base.project.spring.boot.dto.LoginResponse;
 import com.base.project.spring.boot.dto.RefreshRequest;
 import com.base.project.spring.boot.dto.RegisterRequest;
+import com.base.project.spring.boot.dto.TotpCodeRequest;
+import com.base.project.spring.boot.dto.TotpLoginRequest;
+import com.base.project.spring.boot.dto.TotpSetupResponse;
 import com.base.project.spring.boot.dto.UserResponse;
 import com.base.project.spring.boot.exception.ErrorResponse;
 import com.base.project.spring.boot.repository.UserRepository;
 
+import dev.samstevens.totp.code.DefaultCodeGenerator;
 import tools.jackson.databind.ObjectMapper;
 
 /**
@@ -149,7 +155,7 @@ class AuthFlowIntegrationTest {
     }
 
     @Test
-    void login_withCorrectPassword_returnsFreshTokens() throws Exception {
+    void login_withUnverifiedEmail_returns403() throws Exception {
         String email = uniqueEmail();
         register(email);
 
@@ -157,10 +163,75 @@ class AuthFlowIntegrationTest {
         String body = mockMvc
                 .perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isForbidden()).andReturn().getResponse().getContentAsString();
+
+        ErrorResponse response = objectMapper.readValue(body, ErrorResponse.class);
+        assertThat(response.message()).isEqualTo("Please verify your email before logging in");
+    }
+
+    @Test
+    void login_withCorrectPasswordAndVerifiedEmail_returnsFreshTokens() throws Exception {
+        String email = uniqueEmail();
+        register(email);
+        verifyEmail(email);
+
+        LoginRequest request = new LoginRequest(email, "supersecret123");
+        String body = mockMvc
+                .perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
 
-        AuthResponse response = objectMapper.readValue(body, AuthResponse.class);
-        assertThat(response.accessToken()).isNotBlank();
+        LoginResponse response = objectMapper.readValue(body, LoginResponse.class);
+        assertThat(response.mfaRequired()).isFalse();
+        assertThat(response.tokens().accessToken()).isNotBlank();
+    }
+
+    @Test
+    void verifyEmail_withInvalidToken_returns400() throws Exception {
+        mockMvc.perform(post("/api/auth/verify-email").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"token\":\"not-a-real-token\"}")).andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void resendVerification_forUnknownEmail_stillReturns202() throws Exception {
+        mockMvc.perform(post("/api/auth/resend-verification").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"email\":\"" + uniqueEmail() + "\"}")).andExpect(status().isAccepted());
+    }
+
+    @Test
+    void totpFlow_setupEnableAndLoginRequiresCode() throws Exception {
+        String email = uniqueEmail();
+        AuthResponse tokens = register(email);
+        verifyEmail(email);
+
+        String setupBody = mockMvc
+                .perform(post("/api/users/me/totp/setup").header(HttpHeaders.AUTHORIZATION,
+                        "Bearer " + tokens.accessToken()))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        TotpSetupResponse setup = objectMapper.readValue(setupBody, TotpSetupResponse.class);
+        assertThat(setup.secret()).isNotBlank();
+
+        String code = new DefaultCodeGenerator().generate(setup.secret(), Instant.now().getEpochSecond() / 30);
+
+        mockMvc.perform(
+                post("/api/users/me/totp/enable").header(HttpHeaders.AUTHORIZATION, "Bearer " + tokens.accessToken())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new TotpCodeRequest(code))))
+                .andExpect(status().isNoContent());
+
+        LoginRequest loginRequest = new LoginRequest(email, "supersecret123");
+        String loginBody = mockMvc
+                .perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(loginRequest)))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        LoginResponse loginResponse = objectMapper.readValue(loginBody, LoginResponse.class);
+        assertThat(loginResponse.mfaRequired()).isTrue();
+        assertThat(loginResponse.mfaToken()).isNotBlank();
+
+        String freshCode = new DefaultCodeGenerator().generate(setup.secret(), Instant.now().getEpochSecond() / 30);
+        TotpLoginRequest totpLoginRequest = new TotpLoginRequest(loginResponse.mfaToken(), freshCode);
+        mockMvc.perform(post("/api/auth/login/totp").contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(totpLoginRequest))).andExpect(status().isOk());
     }
 
     @Test
@@ -216,6 +287,12 @@ class AuthFlowIntegrationTest {
     private void disableAccount(String email) {
         User user = userRepository.findByEmail(email).orElseThrow();
         user.setEnabled(false);
+        userRepository.save(user);
+    }
+
+    private void verifyEmail(String email) {
+        User user = userRepository.findByEmail(email).orElseThrow();
+        user.setEmailVerified(true);
         userRepository.save(user);
     }
 

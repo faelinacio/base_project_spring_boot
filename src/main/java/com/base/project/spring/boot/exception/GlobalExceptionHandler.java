@@ -36,6 +36,33 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         return build(HttpStatus.UNAUTHORIZED, ex.getMessage(), req);
     }
 
+    @ExceptionHandler(InvalidVerificationTokenException.class)
+    public ResponseEntity<ErrorResponse> handleInvalidVerificationToken(InvalidVerificationTokenException ex,
+            HttpServletRequest req) {
+        return build(HttpStatus.BAD_REQUEST, ex.getMessage(), req);
+    }
+
+    @ExceptionHandler(EmailNotVerifiedException.class)
+    public ResponseEntity<ErrorResponse> handleEmailNotVerified(EmailNotVerifiedException ex, HttpServletRequest req) {
+        return build(HttpStatus.FORBIDDEN, "Please verify your email before logging in", req);
+    }
+
+    @ExceptionHandler(InvalidTotpCodeException.class)
+    public ResponseEntity<ErrorResponse> handleInvalidTotpCode(InvalidTotpCodeException ex, HttpServletRequest req) {
+        return build(HttpStatus.UNAUTHORIZED, ex.getMessage(), req);
+    }
+
+    @ExceptionHandler(TotpSetupNotStartedException.class)
+    public ResponseEntity<ErrorResponse> handleTotpSetupNotStarted(TotpSetupNotStartedException ex,
+            HttpServletRequest req) {
+        return build(HttpStatus.BAD_REQUEST, ex.getMessage(), req);
+    }
+
+    @ExceptionHandler(InvalidMfaTokenException.class)
+    public ResponseEntity<ErrorResponse> handleInvalidMfaToken(InvalidMfaTokenException ex, HttpServletRequest req) {
+        return build(HttpStatus.UNAUTHORIZED, ex.getMessage(), req);
+    }
+
     @ExceptionHandler(BadCredentialsException.class)
     public ResponseEntity<ErrorResponse> handleBadCredentials(BadCredentialsException ex, HttpServletRequest req) {
         // Deliberately generic: never reveal whether the email or the password was wrong.

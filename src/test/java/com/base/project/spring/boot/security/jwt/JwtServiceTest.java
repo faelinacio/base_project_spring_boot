@@ -29,7 +29,8 @@ class JwtServiceTest {
     }
 
     private JwtService newService(String secret, Duration accessTtl, Duration refreshTtl, String issuer) {
-        JwtService service = new JwtService(new JwtProperties(secret, accessTtl, refreshTtl, issuer));
+        JwtService service = new JwtService(
+                new JwtProperties(secret, accessTtl, refreshTtl, Duration.ofMinutes(5), issuer));
         service.init();
         return service;
     }
@@ -91,9 +92,17 @@ class JwtServiceTest {
     void init_rejectsSecretShorterThan256Bits() {
         JwtService weak = new JwtService(
                 new JwtProperties(Base64.getEncoder().encodeToString("too-short".getBytes(StandardCharsets.UTF_8)),
-                        Duration.ofMinutes(15), Duration.ofDays(7), "test-issuer"));
+                        Duration.ofMinutes(15), Duration.ofDays(7), Duration.ofMinutes(5), "test-issuer"));
 
         assertThatThrownBy(weak::init).isInstanceOf(IllegalStateException.class);
+    }
+
+    @Test
+    void generateMfaToken_producesMfaTypeToken() {
+        JwtService.IssuedToken issued = jwtService.generateMfaToken("rafael@example.com", Role.USER);
+
+        Claims claims = jwtService.parseAndValidate(issued.token());
+        assertThat(jwtService.extractTokenType(claims)).isEqualTo(TokenType.MFA);
     }
 
 }
