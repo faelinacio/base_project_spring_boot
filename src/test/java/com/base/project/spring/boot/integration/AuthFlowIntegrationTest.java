@@ -125,6 +125,7 @@ class AuthFlowIntegrationTest {
         UserResponse response = objectMapper.readValue(body, UserResponse.class);
         assertThat(response.email()).isEqualTo(email);
         assertThat(response.role()).isEqualTo("USER");
+        assertThat(response.totpEnabled()).isFalse();
     }
 
     @Test
@@ -230,6 +231,11 @@ class AuthFlowIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(new TotpCodeRequest(code))))
                 .andExpect(status().isNoContent());
+
+        String profileBody = mockMvc
+                .perform(get("/api/users/me").header(HttpHeaders.AUTHORIZATION, "Bearer " + tokens.accessToken()))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        assertThat(objectMapper.readValue(profileBody, UserResponse.class).totpEnabled()).isTrue();
 
         LoginRequest loginRequest = new LoginRequest(email, "supersecret123");
         String loginBody = mockMvc
