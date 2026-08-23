@@ -46,8 +46,9 @@ public class AuthController {
     private final ResendVerificationEmailUseCase resendVerificationEmailUseCase;
     private final VerifyTotpLoginUseCase verifyTotpLoginUseCase;
 
-    @Operation(summary = "Register a new account", description = "Creates the user and sends an email verification link. The returned tokens can be used immediately, "
-            + "even before the email is verified.")
+    @Operation(summary = "Register a new account", description = "Creates the user and sends an email verification link. The returned tokens are only valid "
+            + "once the email is verified - every protected endpoint (including this response's own tokens) rejects "
+            + "an unverified account with 403 until then.")
     @ApiResponse(responseCode = "201", description = "Account created")
     @ApiResponse(responseCode = "400", description = "Validation failed", content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
     @ApiResponse(responseCode = "409", description = "Email already registered", content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
