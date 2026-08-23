@@ -116,9 +116,6 @@ class GoogleLoginUseCaseTest {
 
     @Test
     void execute_whenReturningLinkedAccountNotEmailVerified_throws() {
-        // linkGoogleAccount/createFromGoogle both force emailVerified=true, but a returning
-        // already-linked user (googleId already set) skips that block entirely - this proves the
-        // use case still re-checks emailVerified afterward instead of trusting a stale value.
         UUID userId = UUID.randomUUID();
         User existing = User.builder().id(userId).email("rafael@example.com").googleId("google-123").role(Role.USER)
                 .enabled(true).emailVerified(false).build();

@@ -34,10 +34,6 @@ public class GoogleLoginUseCase {
             throw new DisabledException("Account is disabled");
         }
 
-        // linkGoogleAccount/createFromGoogle both force emailVerified=true whenever they touch the
-        // account, but a returning already-linked user (found by googleId, googleId already set) skips
-        // that entirely and keeps whatever emailVerified currently holds - re-checked here so this path
-        // can't silently diverge from LoginUseCase if some future feature ever flips it back to false.
         if (!user.isEmailVerified()) {
             throw new EmailNotVerifiedException();
         }
