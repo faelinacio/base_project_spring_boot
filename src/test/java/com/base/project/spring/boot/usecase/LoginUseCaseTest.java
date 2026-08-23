@@ -25,7 +25,6 @@ import com.base.project.spring.boot.dto.AuthResponse;
 import com.base.project.spring.boot.dto.LoginRequest;
 import com.base.project.spring.boot.dto.LoginResponse;
 import com.base.project.spring.boot.exception.EmailNotVerifiedException;
-import com.base.project.spring.boot.security.jwt.JwtService;
 
 @ExtendWith(MockitoExtension.class)
 class LoginUseCaseTest {
@@ -37,31 +36,28 @@ class LoginUseCaseTest {
     private CurrentUserLoader currentUserLoader;
 
     @Mock
-    private TokenIssuer tokenIssuer;
-
-    @Mock
-    private JwtService jwtService;
+    private LoginResponseIssuer loginResponseIssuer;
 
     private LoginUseCase useCase;
 
     @BeforeEach
     void setUp() {
-        useCase = new LoginUseCase(authenticationManager, currentUserLoader, tokenIssuer, jwtService);
+        useCase = new LoginUseCase(authenticationManager, currentUserLoader, loginResponseIssuer);
     }
 
     @Test
-    void execute_whenCredentialsValidAndEmailVerified_authenticatesAndIssuesTokens() {
+    void execute_whenCredentialsValidAndEmailVerified_authenticatesAndDelegatesToLoginResponseIssuer() {
         LoginRequest request = new LoginRequest("rafael@example.com", "supersecret123");
         UUID userId = UUID.randomUUID();
         User user = User.builder().id(userId).email("rafael@example.com").role(Role.USER).enabled(true)
                 .emailVerified(true).build();
         when(currentUserLoader.byEmail("rafael@example.com")).thenReturn(user);
-        AuthResponse expected = new AuthResponse("access", "refresh", "Bearer", 900);
-        when(tokenIssuer.issueFor("rafael@example.com", Role.USER, userId)).thenReturn(expected);
+        LoginResponse expected = LoginResponse.authenticated(new AuthResponse("access", "refresh", "Bearer", 900));
+        when(loginResponseIssuer.issueFor(user)).thenReturn(expected);
 
         LoginResponse result = useCase.execute(request);
 
-        assertThat(result).isEqualTo(LoginResponse.authenticated(expected));
+        assertThat(result).isEqualTo(expected);
         verify(authenticationManager)
                 .authenticate(eq(new UsernamePasswordAuthenticationToken("rafael@example.com", "supersecret123")));
     }
@@ -84,7 +80,7 @@ class LoginUseCaseTest {
     }
 
     @Test
-    void execute_whenEmailNotVerified_throwsAndNeverIssuesTokens() {
+    void execute_whenEmailNotVerified_throwsAndNeverDelegates() {
         LoginRequest request = new LoginRequest("rafael@example.com", "supersecret123");
         User user = User.builder().id(UUID.randomUUID()).email("rafael@example.com").role(Role.USER).enabled(true)
                 .emailVerified(false).build();
@@ -92,25 +88,7 @@ class LoginUseCaseTest {
 
         assertThatThrownBy(() -> useCase.execute(request)).isInstanceOf(EmailNotVerifiedException.class);
 
-        verify(tokenIssuer, never()).issueFor(any(), any(), any());
-    }
-
-    @Test
-    void execute_whenTotpEnabled_returnsMfaRequiredInsteadOfTokens() {
-        LoginRequest request = new LoginRequest("rafael@example.com", "supersecret123");
-        UUID userId = UUID.randomUUID();
-        User user = User.builder().id(userId).email("rafael@example.com").role(Role.USER).enabled(true)
-                .emailVerified(true).totpEnabled(true).build();
-        when(currentUserLoader.byEmail("rafael@example.com")).thenReturn(user);
-        JwtService.IssuedToken mfaToken = new JwtService.IssuedToken("mfa-token", null);
-        when(jwtService.generateMfaToken("rafael@example.com", Role.USER)).thenReturn(mfaToken);
-
-        LoginResponse result = useCase.execute(request);
-
-        assertThat(result.mfaRequired()).isTrue();
-        assertThat(result.mfaToken()).isEqualTo("mfa-token");
-        assertThat(result.tokens()).isNull();
-        verify(tokenIssuer, never()).issueFor(any(), any(), any());
+        verify(loginResponseIssuer, never()).issueFor(any());
     }
 
 }

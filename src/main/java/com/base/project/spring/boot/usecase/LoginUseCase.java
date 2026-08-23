@@ -7,7 +7,6 @@ import com.base.project.spring.boot.domain.User;
 import com.base.project.spring.boot.dto.LoginRequest;
 import com.base.project.spring.boot.dto.LoginResponse;
 import com.base.project.spring.boot.exception.EmailNotVerifiedException;
-import com.base.project.spring.boot.security.jwt.JwtService;
 
 import lombok.RequiredArgsConstructor;
 
@@ -17,8 +16,7 @@ public class LoginUseCase {
 
     private final AuthenticationManager authenticationManager;
     private final CurrentUserLoader currentUserLoader;
-    private final TokenIssuer tokenIssuer;
-    private final JwtService jwtService;
+    private final LoginResponseIssuer loginResponseIssuer;
 
     public LoginResponse execute(LoginRequest request) {
         authenticationManager
@@ -30,12 +28,7 @@ public class LoginUseCase {
             throw new EmailNotVerifiedException();
         }
 
-        if (user.isTotpEnabled()) {
-            String mfaToken = jwtService.generateMfaToken(user.getEmail(), user.getRole()).token();
-            return LoginResponse.mfaRequired(mfaToken);
-        }
-
-        return LoginResponse.authenticated(tokenIssuer.issueFor(user.getEmail(), user.getRole(), user.getId()));
+        return loginResponseIssuer.issueFor(user);
     }
 
 }

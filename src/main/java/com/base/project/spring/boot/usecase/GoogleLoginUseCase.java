@@ -6,24 +6,23 @@ import org.springframework.transaction.annotation.Transactional;
 import com.base.project.spring.boot.domain.Role;
 import com.base.project.spring.boot.domain.User;
 import com.base.project.spring.boot.dto.LoginResponse;
+import com.base.project.spring.boot.exception.EmailNotVerifiedException;
 import com.base.project.spring.boot.repository.UserRepository;
-import com.base.project.spring.boot.security.jwt.JwtService;
 
 import lombok.RequiredArgsConstructor;
 
 /**
  * Finds or creates the local account for a successful Google login. Accounts are matched/linked by email: if a
  * password-based account already exists with the same address, the Google identity is linked onto it; otherwise a new
- * OAuth-only account (no password) is created. Mirrors LoginUseCase's TOTP branch so 2FA can't be bypassed by signing
- * in with Google instead of a password.
+ * OAuth-only account (no password) is created. Delegates the final TOTP-or-tokens step to {@link LoginResponseIssuer}
+ * so it can't drift from {@link LoginUseCase}'s behavior.
  */
 @UseCase
 @RequiredArgsConstructor
 public class GoogleLoginUseCase {
 
     private final UserRepository userRepository;
-    private final TokenIssuer tokenIssuer;
-    private final JwtService jwtService;
+    private final LoginResponseIssuer loginResponseIssuer;
 
     @Transactional
     public LoginResponse execute(String googleId, String email, String name) {
@@ -35,12 +34,15 @@ public class GoogleLoginUseCase {
             throw new DisabledException("Account is disabled");
         }
 
-        if (user.isTotpEnabled()) {
-            String mfaToken = jwtService.generateMfaToken(user.getEmail(), user.getRole()).token();
-            return LoginResponse.mfaRequired(mfaToken);
+        // linkGoogleAccount/createFromGoogle both force emailVerified=true whenever they touch the
+        // account, but a returning already-linked user (found by googleId, googleId already set) skips
+        // that entirely and keeps whatever emailVerified currently holds - re-checked here so this path
+        // can't silently diverge from LoginUseCase if some future feature ever flips it back to false.
+        if (!user.isEmailVerified()) {
+            throw new EmailNotVerifiedException();
         }
 
-        return LoginResponse.authenticated(tokenIssuer.issueFor(user.getEmail(), user.getRole(), user.getId()));
+        return loginResponseIssuer.issueFor(user);
     }
 
     private User linkGoogleAccount(User user, String googleId) {
